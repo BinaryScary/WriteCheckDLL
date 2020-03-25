@@ -8,6 +8,7 @@
 
 #define STRSIZE 256
 
+// Ref: https://docs.microsoft.com/en-us/windows/win32/debug/retrieving-the-last-error-code
 void ErrorExit(LPTSTR lpszFunction) 
 { 
     // Retrieve the system error message for the last-error code
