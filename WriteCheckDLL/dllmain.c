@@ -8,6 +8,8 @@
 
 #define STRSIZE 256
 
+// Use in C# proj: Add Existing Item 32/64.dll, (right-click on file in proj)->properties->Copy to Output Dir : Copy if newer
+
 // Ref: https://docs.microsoft.com/en-us/windows/win32/debug/retrieving-the-last-error-code
 void ErrorExit(LPTSTR lpszFunction) 
 { 
@@ -99,7 +101,7 @@ char* getDir(char* path) {
 }
 
 // check write access on files and folders
-int writeCheck(char* path) {
+int pathWritableAC(char* path) {
 	PSECURITY_DESCRIPTOR pSD = NULL;
 	PACL pDACL = NULL; 
 	accessParms* p = initAccessParms();

@@ -1,2 +1,2 @@
 #pragma once
-__declspec(dllexport) int writeCheck(char* path);
+__declspec(dllexport) int pathWritableAC(char* path);
