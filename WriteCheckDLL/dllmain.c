@@ -55,7 +55,7 @@ typedef struct accessParms {
 	DWORD privilegesLength;
 	DWORD genericAccessRights;
 }accessParms;
-accessParms* initAccessParms() {
+accessParms* initAccessParms(SE_OBJECT_TYPE type) {
 	accessParms* p = malloc(sizeof(accessParms));
 	p->hToken = NULL;
 	p->hImpersonatedToken = NULL;
@@ -68,10 +68,30 @@ accessParms* initAccessParms() {
 	p->privilegesLength = sizeof( p->privileges );
 	p->genericAccessRights = GENERIC_WRITE; // check for write access
 
-	(p->mapping).GenericRead = FILE_GENERIC_READ;
-	(p->mapping).GenericWrite = FILE_GENERIC_WRITE;
-	(p->mapping).GenericExecute = FILE_GENERIC_EXECUTE;
-	(p->mapping).GenericAll = FILE_ALL_ACCESS;
+	// Generic Mapping must match Security Object Type
+	switch (type) {
+	case SE_REGISTRY_KEY:
+		// SE_REGISTRY_KEY
+		(p->mapping).GenericRead = KEY_READ;
+		(p->mapping).GenericWrite = KEY_WRITE;
+		(p->mapping).GenericExecute = KEY_EXECUTE;
+		(p->mapping).GenericAll = KEY_ALL_ACCESS;
+		break;
+	case SE_FILE_OBJECT:
+		// SE_FIlE_OBJECT
+		(p->mapping).GenericRead = FILE_GENERIC_READ;
+		(p->mapping).GenericWrite = FILE_GENERIC_WRITE;
+		(p->mapping).GenericExecute = FILE_GENERIC_EXECUTE;
+		(p->mapping).GenericAll = FILE_ALL_ACCESS;
+		break;
+	default:
+		// SE_FIlE_OBJECT
+		(p->mapping).GenericRead = FILE_GENERIC_READ;
+		(p->mapping).GenericWrite = FILE_GENERIC_WRITE;
+		(p->mapping).GenericExecute = FILE_GENERIC_EXECUTE;
+		(p->mapping).GenericAll = FILE_ALL_ACCESS;
+		break;
+	}
 
 	MapGenericMask( &(p->genericAccessRights), &(p->mapping) );
 	return p;
@@ -101,31 +121,42 @@ char* getDir(char* path) {
 }
 
 // check write access on files and folders
-int pathWritableAC(char* path) {
+// (Registry-Hive)Path: "CLASSES_ROOT", "CURRENT_USER", "MACHINE", and "USERS".
+// type: SE_FILE_OBJECT = 1, SE_REGISTRY_KEY = 4
+int pathWritableAC(char* path, SE_OBJECT_TYPE type) {
 	PSECURITY_DESCRIPTOR pSD = NULL;
 	PACL pDACL = NULL; 
-	accessParms* p = initAccessParms();
+	accessParms* p = initAccessParms(type);
 
 	//char* dir = getDir(path);
 	BOOL writable = FALSE;
 
 	// check if dir/file is writable
-	if (GetNamedSecurityInfoA(path, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION, NULL, NULL, &pDACL, NULL, &pSD) != ERROR_SUCCESS) {
+	if (GetNamedSecurityInfoA(path, type, DACL_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION, NULL, NULL, &pDACL, NULL, &pSD) != ERROR_SUCCESS) {
 		// cleanup pointers
-		if (pSD != NULL) { LocalFree((HLOCAL)pSD); }
-		//if (pDACL != NULL) { LocalFree((HLOCAL)pDACL); }
+		if (pSD != NULL) LocalFree((HLOCAL)pSD);
+		//if (pDACL != NULL) LocalFree((HLOCAL)pDACL);
+		if (p != NULL) freeAccessParms(p);
+
 		return writable;
 	}
 	//printf("%d", IsValidSecurityDescriptor(pSD));
 
 	// check if file is available to everyone, authorized users, or current user
 	if (!AccessCheck(pSD, p->hImpersonatedToken, p->genericAccessRights, &(p->mapping), &(p->privileges), &(p->privilegesLength), &(p->grantedAccess), &writable)) {
+		// cleanup pointers
+		if (pSD != NULL) LocalFree((HLOCAL)pSD);
+		//if (pDACL != NULL) LocalFree((HLOCAL)pDACL);
+		if (p != NULL) freeAccessParms(p);
+
 		ErrorExit(TEXT("AccessCheck"));
 	}
 
 	// free descriptor and dacl
-	if (pSD != NULL) { LocalFree((HLOCAL)pSD); }
-	//if (pDACL != NULL) { LocalFree((HLOCAL)pDACL); }
+	if (pSD != NULL) LocalFree((HLOCAL)pSD); 
+	//if (pDACL != NULL) LocalFree((HLOCAL)pDACL);
+	if (p != NULL) freeAccessParms(p);
 
 	return writable;
 }
+
